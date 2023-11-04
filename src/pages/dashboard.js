@@ -7,6 +7,7 @@ import Geohash from 'latlon-geohash';
 import getDispatcher from "waku-dispatcher"
 import { DispatchMetadata, Dispatcher, Signer } from 'waku-dispatcher';
 
+
 const trackOptions = {
     enableHighAccuracy: true,
     maximumAge: 6000,
@@ -17,10 +18,16 @@ export default function Dashboard() {
     const router = useRouter();
     const { address, isConnecting, isDisconnected } = useAccount();
     const [location, setLocation] = useState(null);
+    const [message, setMessage] = useState(null);
+    const [trimmedLocation, setTrimmedLocation] = useState(null);
+    const [texts, setTexts] = useState([]);
 
-    // const send = async () => {
-    //     dispatcher.emit("hello")
-    // }
+
+    const [dispatcher, setDispatcher] = useState()
+
+    const send = async () => {
+        dispatcher.emit("hello", { sender: address, message: message, timestamp: Date.now() })
+    }
 
     useEffect(() => {
         if (typeof window !== 'undefined' && navigator.geolocation) {
@@ -43,20 +50,38 @@ export default function Dashboard() {
     }, []);
 
     useEffect(() => {
+        if (location !== null) {
+            setTrimmedLocation(location.geoHash.substring(0, 6));
+            console.log(trimmedLocation)
+        }
+    }, [location]);
+
+
+
+    useEffect(() => {
         if (!address) {
             router.push('/');
         }
     }, [address]);
 
-    // useEffect(() => {
-    //     if (dispatcher) return;
+    useEffect(() => {
+        if (dispatcher) return;
 
-    //     (async () => {
-    //         const d = await getDispatcher(undefined, "/ethlisbon/"+{}, "temperature", false)
-    //         if (d === null) return
-    //         setDispatcher(d)
-    //     })()
-    // }, [])
+        (async () => {
+            const d = await getDispatcher(undefined, "/ethlisbon/" + { trimmedLocation }, "hello", false)
+            if (d === null) return
+            setDispatcher(d)
+        })()
+    }, [])
+
+    useEffect(() => {
+        if (!dispatcher) return
+
+        dispatcher.on("hello", (data) => {
+            setTexts((x) => [...x, data])
+        })
+        dispatcher.dispatchLocalQuery()
+    }, [dispatcher])
 
     return (
         <>
@@ -79,11 +104,17 @@ export default function Dashboard() {
                 <div id='chat' className='border p-10'>
 
                     <div id='messages'>
-                        You : hi
+                        {texts.map((r, i) => (
+                            <div className='my-1' key={i.toString()}>
+                                {r.address} : {r.message} at {r.timestamp}
+                            </div>
+                        ))}
                     </div>
                     <div className='flex space-x-3 mt-5'>
-                        <input className=' border px-2 ' placeholder='Enter your message' />
-                        <button className='p-1 bg-black text-white'>Send</button>
+                        <input type="text"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)} className=' border px-2 ' placeholder='Enter your message' />
+                        <button onClick={() => send()} className='p-1 bg-black text-white'>Send</button>
                     </div>
                 </div>
             </main>
